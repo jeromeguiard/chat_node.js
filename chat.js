@@ -2,13 +2,14 @@
 var server_http = require("http");
 var querystring = require("querystring");
 var url = require("url");
-var fs = require('fs');
+var fs = require("fs");
+var events = require("events");
 
-var messages = new Array();
+//Create our event object
+var eventEmitter = new events.EventEmitter();
 
 //Create a message object
-function messageObject(id, content, author){
-    this.id = id;
+function messageObject(content, author){
     this.content = content;
     this.author = author;
     this.toString = function(){
@@ -16,22 +17,6 @@ function messageObject(id, content, author){
     }
 }
 
-function writeMessageFromId(id){
-    var messagesToReturn = new Array()
-    for (var key in messages){
-         if (key >= id){
-             messagesToReturn.push(messages[key])
-         }
-    }    
-    return messagesToReturn;
-}
-
-function writeMessages(response, message){
-    if (message === undefined) message = 0 ; 
-    response.writeHead(201,{'Content-Type':'text/json'});
-    response.write(JSON.stringify(writeMessageFromId(message)));
-    response.end();
-}
 
 function postMessage(request, response){
     var fullbody = '';
@@ -40,22 +25,23 @@ function postMessage(request, response){
     });
     request.on('end',function(){
         var jsonWithPost = querystring.parse(fullbody);
-        var tempMessage = new messageObject(messages.length, 
-                                            jsonWithPost.message, 
+        var tempMessage = new messageObject(jsonWithPost.message, 
                                             jsonWithPost.author); 
-        messages[messages.length] = tempMessage;
-        writeMessages(response); 
+        //creation of the event message 
+        eventEmitter.emit("message", tempMessage.toString());
+        response.writeHead(201,{'Content-Type':'text/json'});
+        response.end();
     });
 }
 
 function getIndex(response){
-    response.writeHead(201,{'Content-Type':'text/html'});
+    response.writeHead(200,{'Content-Type':'text/html'});
     response.write(fs.readFileSync("index.html"));
     response.end();
 }
 
 function getMainJs(response){
-    response.writeHead(201,{'Content-Type':'text/javascript'});
+    response.writeHead(200,{'Content-Type':'text/javascript'});
     response.write(fs.readFileSync("main.js"));
     response.end();
 }
@@ -66,9 +52,17 @@ server_http.createServer( function(request, response){
 
     if (page == "/message"){
         if(request.method == 'GET'){
-            var fromMessage = urlInfo.query.from
-            writeMessages(response, urlInfo.query.from); 
-         }
+            response.writeHead(200,{
+                 'Content-Type':'text/event-stream',
+                 'Cache-Control' : 'no-cache',
+                 'Connection' : 'keep-alive'});
+            // creation of the listener that is going to handle the response
+            eventEmitter.once("message", function(message){
+                 response.write("data:"+ message.toString() + "\n\n");
+                 response.end()
+                 delete response;
+             });
+        }
          else if(request.method == 'POST'){
             postMessage(request, response);
         }else{
