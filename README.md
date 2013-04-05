@@ -10,3 +10,7 @@ node chat.js
 1 - First commit is the chat who will retrieve informations thanks to javascript
 
 2 - Second commit is done in order to use SSE instead of AJAX
+
+3 - Third step is to do the server with websocket : 
+    first at all install the websocket module: 
+    npm install websocket
